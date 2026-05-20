@@ -234,28 +234,13 @@ The application will be available at `http://localhost:5000`
 
 ---
 
-## 📝 License
-
-[License information to be added]
-
----
-
-## 📚 Citation
-
-If you use this project in your research or work, please cite:
-
-```bibtex
-[Citation information to be added]
-```
-
----
 
 ## 📧 Contact & Support
 
 For questions, suggestions, or collaboration opportunities:
 
 - **GitHub Issues**: [Open an issue](https://github.com/rajeshkadiyalaaa/Dental-Caries-Detection/issues)
-- **Contact**: [Your contact information to be added]
+- **Contact**: [rajeshkadiyalaaa@gmail.com]
 
 ---
 
