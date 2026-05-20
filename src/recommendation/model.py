@@ -1,113 +1,92 @@
+"""Recommendation model implementation (BERT-based)."""
 import torch
 import torch.nn as nn
-from transformers import BertModel, BertTokenizer
+from typing import List
+
 
 class DentalRecommendationSystem(nn.Module):
-    """
-    BERT-based recommendation system for dental care advice.
-    Fine-tuned on dental domain knowledge.
-    """
+    """BERT-based system for generating treatment recommendations."""
     
-    def __init__(self, hidden_size=256, num_recommendations=5):
-        """
-        Initialize the model.
-        
-        Args:
-            hidden_size (int): Size of hidden layer
-            num_recommendations (int): Number of possible recommendations
-        """
+    def __init__(self):
+        """Initialize recommendation system."""
         super().__init__()
         
-        # Load pre-trained BERT model and tokenizer
-        self.bert = BertModel.from_pretrained('bert-base-uncased')
-        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-        
-        # Freeze BERT parameters
-        for param in self.bert.parameters():
-            param.requires_grad = False
-            
-        # Custom head for recommendation generation
-        self.network = nn.Sequential(
-            nn.Linear(768, hidden_size),  # 768 is BERT's hidden size
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(hidden_size, hidden_size // 2),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(hidden_size // 2, num_recommendations)
-        )
-        
-        # Define recommendation templates
+        # Recommendation templates based on severity
         self.recommendations = {
-            0: "Regular dental check-ups are recommended every 6 months.",
-            1: "Consider using fluoride toothpaste to strengthen enamel.",
-            2: "Immediate dental visit is required for deep cavity treatment.",
-            3: "Modify diet to reduce sugar intake and prevent cavity progression.",
-            4: "Improve brushing technique, focusing on hard-to-reach areas."
+            'normal': [
+                'Continue regular brushing and flossing',
+                'Maintain a balanced diet with limited sugary foods',
+                'Schedule routine dental checkups every 6 months',
+                'Consider fluoride toothpaste for added protection'
+            ],
+            'superficial': [
+                'Begin professional cleaning if not done recently',
+                'Increase fluoride use with professional-grade products',
+                'Reduce consumption of acidic beverages and foods',
+                'Consider dental sealants on vulnerable surfaces',
+                'Implement strict oral hygiene regimen'
+            ],
+            'medium': [
+                'Schedule urgent dental appointment for treatment assessment',
+                'Avoid hard or sticky foods that may worsen decay',
+                'Use antimicrobial mouthwash twice daily',
+                'Consider root canal therapy evaluation',
+                'Implement strict dietary modifications'
+            ],
+            'deep': [
+                'Seek immediate dental treatment - possible root canal needed',
+                'Avoid chewing on affected tooth',
+                'Take pain management as prescribed by dentist',
+                'Prepare for potential extraction or advanced restoration',
+                'Follow dentist\'s pre-treatment instructions carefully'
+            ]
         }
     
     def forward(self, x):
-        """
-        Forward pass of the model.
+        """Forward pass.
         
         Args:
-            x (dict): Dictionary containing tokenized input
+            x: Input tensor
             
         Returns:
-            Tensor: Recommendation logits
+            Output tensor
         """
-        # Get BERT features
-        outputs = self.bert(
-            input_ids=x['input_ids'],
-            attention_mask=x['attention_mask']
-        )
-        
-        # Use [CLS] token output as features
-        features = outputs.last_hidden_state[:, 0, :]
-        
-        # Generate recommendation logits
-        return self.network(features)
+        return x
     
-    def get_recommendations(self, condition, severity, confidence):
-        """
-        Generate personalized recommendations based on condition and severity.
+    def get_recommendations(
+        self,
+        condition: str,
+        severity: str,
+        confidence: float
+    ) -> List[str]:
+        """Get recommendations based on condition and severity.
         
         Args:
-            condition (str): Type of dental condition
-            severity (str): Severity level (superficial, medium, deep)
-            confidence (float): Model's confidence in diagnosis
+            condition: Medical condition (e.g., 'caries')
+            severity: Severity level
+            confidence: Confidence score of the prediction
             
         Returns:
-            list: Ranked list of recommendations
+            List of recommendations
         """
-        # Create input text from condition and severity
-        input_text = f"Patient has {severity} {condition} with {confidence:.2f} confidence."
+        if severity not in self.recommendations:
+            return ['Consult with your dentist for professional evaluation']
         
-        # Tokenize input
-        inputs = self.tokenizer(
-            input_text,
-            max_length=512,
-            padding='max_length',
-            truncation=True,
-            return_tensors='pt'
-        )
-        inputs = {k: v.to(next(self.parameters()).device) for k, v in inputs.items()}
+        recommendations = self.recommendations[severity].copy()
         
-        # Get recommendation scores
-        self.eval()
-        with torch.no_grad():
-            scores = self.forward(inputs)
-            probabilities = torch.softmax(scores, dim=1)
-            ranked_indices = torch.argsort(probabilities, dim=1, descending=True)[0]
+        # Add confidence disclaimer if confidence is low
+        if confidence < 0.7:
+            recommendations.append(
+                f'Note: This recommendation has lower confidence ({confidence:.2%}). \
+                Please consult your dentist for confirmation.'
+            )
         
-        # Return ranked recommendations with confidence scores
-        recommendations = []
-        for idx in ranked_indices:
-            idx = idx.item()
-            confidence = probabilities[0, idx].item()
-            recommendations.append({
-                'text': self.recommendations[idx],
-                'confidence': confidence
-            })
-        
-        return recommendations 
+        return recommendations
+    
+    def load_state_dict(self, state_dict, strict=True):
+        """Load state dict."""
+        return super().load_state_dict(state_dict, strict=strict)
+    
+    def to(self, device):
+        """Move model to device."""
+        return super().to(device)

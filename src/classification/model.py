@@ -1,63 +1,65 @@
+"""Classification model implementation (ResNet-50)."""
 import torch
 import torch.nn as nn
-import torchvision.models as models
+from torchvision.models import resnet50
+
 
 class DentalCariesClassifier(nn.Module):
-    """Dental caries classification model based on ResNet-50."""
+    """ResNet-50 based classifier for caries severity."""
     
-    def __init__(self, num_classes=4):
-        """
-        Initialize the model.
+    def __init__(self, num_classes: int = 4):
+        """Initialize classifier.
         
         Args:
-            num_classes (int): Number of classes (normal, superficial, medium, deep)
+            num_classes: Number of severity classes
         """
         super().__init__()
+        # Load pretrained ResNet-50
+        self.model = resnet50(weights='DEFAULT')
         
-        # Load pre-trained ResNet-50
-        self.model = models.resnet50(pretrained=True)
-        
-        # Replace final layer
+        # Replace final layer for 4-class classification
         in_features = self.model.fc.in_features
-        self.model.fc = nn.Sequential(
-            nn.Linear(in_features, 512),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, num_classes)
-        )
+        self.model.fc = nn.Linear(in_features, num_classes)
     
     def forward(self, x):
-        """
-        Forward pass of the model.
+        """Forward pass.
         
         Args:
-            x (Tensor): Input tensor of shape (batch_size, channels, height, width)
+            x: Input image tensor
             
         Returns:
-            Tensor: Class logits of shape (batch_size, num_classes)
+            Classification logits
         """
         return self.model(x)
     
     def predict(self, x):
-        """
-        Make predictions on a batch of images.
+        """Get predictions with confidence scores.
         
         Args:
-            x (Tensor): Batch of images [B, C, H, W]
+            x: Input image tensor
             
         Returns:
-            tuple: (predictions, probabilities)
+            Tuple of (predicted class, class probabilities)
         """
-        self.eval()
         with torch.no_grad():
             logits = self.forward(x)
-            probabilities = torch.softmax(logits, dim=1)
-            predictions = torch.argmax(probabilities, dim=1)
-            
-            # Debug information
-            print("\nClassification Debug Info:")
-            print(f"Logits: {logits}")
-            print(f"Probabilities: {probabilities}")
-            print(f"Predictions: {predictions}")
-            
-        return predictions, probabilities 
+            probs = torch.softmax(logits, dim=1)
+            pred_class = torch.argmax(logits, dim=1)
+            return pred_class, probs
+    
+    def load_state_dict(self, state_dict, strict=True):
+        """Load state dict."""
+        return self.model.load_state_dict(state_dict, strict=strict)
+    
+    def to(self, device):
+        """Move model to device."""
+        self.model = self.model.to(device)
+        return self
+    
+    def eval(self):
+        """Set to evaluation mode."""
+        return self.model.eval()
+    
+    def train(self, mode=True):
+        """Set to training mode."""
+        return self.model.train(mode)

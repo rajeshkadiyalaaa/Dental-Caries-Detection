@@ -1,1 +1,1 @@
-"""Detection module for dental caries analysis.""" 
+"""Detection module for Dental Caries Detection System."""

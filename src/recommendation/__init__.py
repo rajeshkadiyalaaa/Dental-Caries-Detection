@@ -1,1 +1,1 @@
-"""Recommendation module for dental caries treatment advice.""" 
+"""Recommendation module for Dental Caries Detection System."""

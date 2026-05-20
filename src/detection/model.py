@@ -1,63 +1,49 @@
+"""Detection model implementation (Mask R-CNN)."""
 import torch
 import torch.nn as nn
-import torchvision
 from torchvision.models.detection import maskrcnn_resnet50_fpn
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
+
 
 class DentalCariesDetector(nn.Module):
-    """Dental caries detection model based on Mask R-CNN."""
+    """Mask R-CNN based detector for dental caries."""
     
-    def __init__(self, num_classes=2):
-        """
-        Initialize the model.
+    def __init__(self, num_classes: int = 2):
+        """Initialize detector.
         
         Args:
-            num_classes (int): Number of classes (including background)
+            num_classes: Number of classes (background + caries)
         """
         super().__init__()
-        
-        # Load pre-trained model
-        self.model = maskrcnn_resnet50_fpn(pretrained=True)
-        
-        # Replace box predictor
-        in_features = self.model.roi_heads.box_predictor.cls_score.in_features
-        self.model.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
-        
-        # Replace mask predictor
-        in_features_mask = self.model.roi_heads.mask_predictor.conv5_mask.in_channels
-        hidden_layer = 256
-        self.model.roi_heads.mask_predictor = MaskRCNNPredictor(
-            in_features_mask,
-            hidden_layer,
-            num_classes
+        # Load pretrained Mask R-CNN
+        self.model = maskrcnn_resnet50_fpn(
+            weights='DEFAULT',
+            num_classes=num_classes
         )
     
-    def forward(self, images, targets=None):
-        """
-        Forward pass of the model.
+    def forward(self, images):
+        """Forward pass.
         
         Args:
-            images (List[Tensor]): Images to be processed
-            targets (List[Dict], optional): Ground-truth boxes and labels
+            images: List of input images
             
         Returns:
-            loss_dict (Dict) or detections (List[Dict]): During training, returns
-            a dictionary of losses. During inference, returns a list of detections.
+            Detection results
         """
-        return self.model(images, targets)
+        return self.model(images)
     
-    def predict(self, images):
-        """
-        Make predictions on a batch of images.
-        
-        Args:
-            images (list[Tensor]): Batch of images
-            
-        Returns:
-            list[Dict[str, Tensor]]: List of predictions for each image
-        """
-        self.eval()
-        with torch.no_grad():
-            predictions = self.model(images)
-        return predictions 
+    def load_state_dict(self, state_dict, strict=True):
+        """Load state dict."""
+        return self.model.load_state_dict(state_dict, strict=strict)
+    
+    def to(self, device):
+        """Move model to device."""
+        self.model = self.model.to(device)
+        return self
+    
+    def eval(self):
+        """Set to evaluation mode."""
+        return self.model.eval()
+    
+    def train(self, mode=True):
+        """Set to training mode."""
+        return self.model.train(mode)
