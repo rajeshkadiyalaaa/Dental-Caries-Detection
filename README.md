@@ -1,202 +1,270 @@
-# Dental Caries Analysis and Recommendation System
+# 🦷 Dental Caries Detection & Recommendation System
 
-A comprehensive deep learning-based system for dental caries detection, classification, and personalized recommendations from X-ray images.
+A comprehensive AI-powered system for detecting dental caries, classifying severity levels, and providing personalized treatment recommendations using deep learning models.
 
-## Abstract
+## 📋 Overview
 
-Dental caries is one of the most prevalent oral health issues worldwide, often requiring early detection and intervention to prevent severe complications. This project presents a novel deep learning-based system for dental X-ray analysis, focusing on cavity detection, severity classification, and personalized recommendations. Using advanced models like Mask R-CNN, the system accurately detects cavities and segments their affected regions. A ResNet-50 classifier is employed to assess the severity of caries, categorizing them as normal, superficial, medium, or deep. Additionally, a fine-tuned BERT-based recommendation system generates personalized preventive advice based on the severity and potential causes.
+Dental caries (tooth decay) is one of the most prevalent oral health issues affecting millions worldwide. Early detection and intervention are crucial to prevent severe complications and costly treatments. This project leverages cutting-edge deep learning techniques to automate cavity detection from dental X-rays and provide evidence-based treatment recommendations.
 
-## Project Components
+### Key Capabilities
+- **🔍 Precise Detection**: Identify and localize cavities using Mask R-CNN
+- **📊 Severity Classification**: Classify caries into 4 severity levels using ResNet-50
+- **💡 Smart Recommendations**: Generate personalized treatment advice using BERT
 
-1. **Detection and Segmentation (Mask R-CNN)**
-   - Cavity detection in dental X-rays
-   - Precise segmentation of affected regions
-   - Region proposal and instance segmentation
-   - Normalized bounding box coordinates
+---
 
-2. **Severity Classification (ResNet-50)**
-   - Four-level severity classification
-   - Feature extraction and transfer learning
-   - Confidence scoring for predictions
-   - Class-weighted loss for imbalanced data
-   - Data augmentation for robustness
+## 🏗️ System Architecture
 
-3. **Recommendation System (BERT)**
-   - Personalized treatment recommendations
-   - Context-aware advice generation
-   - Severity-based recommendation prioritization
-   - Five recommendation categories:
-     * Routine Care
-     * Preventive Measures
-     * Immediate Treatment
-     * Dietary Modifications
-     * Oral Hygiene Education
+### Multi-Stage Pipeline
 
-## Project Structure
+```
+Input X-ray Image
+    ↓
+Detection (Mask R-CNN) → Identify cavity regions
+    ↓
+Classification (ResNet-50) → Determine severity level
+    ↓
+Recommendation (BERT) → Generate treatment advice
+    ↓
+Output: Report with visualizations & recommendations
+```
+
+### Components
+
+#### 1. **Detection Module** (Mask R-CNN)
+- Backbone: ResNet-50-FPN
+- Instance segmentation of cavity regions
+- Bounding box and mask predictions
+- Precision spatial localization with ROI Align
+
+#### 2. **Classification Module** (ResNet-50)
+- Transfer learning from ImageNet
+- 4-level severity classification:
+  - **Normal**: No visible caries
+  - **Superficial**: Surface-level decay
+  - **Medium**: Deeper penetration
+  - **Deep**: Severe decay extending to pulp
+- Class-weighted loss for imbalanced data handling
+- Confidence scoring for predictions
+
+#### 3. **Recommendation Module** (BERT)
+- Context-aware recommendation generation
+- Five recommendation categories:
+  - Routine Care
+  - Preventive Measures
+  - Immediate Treatment
+  - Dietary Modifications
+  - Oral Hygiene Education
+- Severity-based prioritization
+
+---
+
+## 📁 Project Structure
 
 ```
 dental_caries_project/
 ├── src/
-│   ├── detection/           # Mask R-CNN implementation
+│   ├── detection/              # Mask R-CNN implementation
+│   │   ├── model.py           # Model architecture
+│   │   ├── train.py           # Training pipeline
+│   │   ├── predict.py         # Inference script
+│   │   └── utils.py           # Utility functions
+│   ├── classification/         # ResNet-50 implementation
 │   │   ├── model.py
 │   │   ├── train.py
 │   │   ├── predict.py
 │   │   └── utils.py
-│   ├── classification/      # ResNet-50 implementation
+│   ├── recommendation/         # BERT implementation
 │   │   ├── model.py
 │   │   ├── train.py
 │   │   ├── predict.py
 │   │   └── utils.py
-│   ├── recommendation/      # BERT implementation
-│   │   ├── model.py
-│   │   ├── train.py
-│   │   ├── predict.py
-│   │   └── utils.py
-│   └── web/                 # Web interface
-│       ├── templates/
-│       └── static/
-├── models/                  # Saved model checkpoints
+│   └── web/                    # Flask web interface
+│       ├── templates/          # HTML templates
+│       └── static/             # CSS, JavaScript assets
+├── models/                     # Trained model checkpoints
 │   ├── detection/
 │   ├── classification/
 │   └── recommendation/
-├── tests/                   # Unit tests
-├── app.py                   # Flask application
-├── requirements.txt         # Project dependencies
-└── README.md               # Documentation
+├── tests/                      # Unit test suite
+├── app.py                      # Flask application entry point
+├── requirements.txt            # Python dependencies
+└── README.md                  # Documentation
 ```
 
-## Dataset Information
+---
 
-The project uses the Dental AI Dataset V4 (Augmented), which includes:
+## 📊 Dataset
 
-### Three-Level Classification Dataset
-- Total Images: 681
-- Distribution:
-  * Normal: 15 images (2.2%)
-  * Superficial: 204 images (30.0%)
-  * Medium: 204 images (30.0%)
-  * Deep: 258 images (37.9%)
+**Dental AI Dataset V4 (Augmented)**
+
+### Distribution
+| Class | Count | Percentage |
+|-------|-------|------------|
+| Normal | 15 | 2.2% |
+| Superficial | 204 | 30.0% |
+| Medium | 204 | 30.0% |
+| Deep | 258 | 37.9% |
+| **Total** | **681** | **100%** |
+
+### Augmentation Techniques
+- Random rotations (±15°)
+- Horizontal/vertical flips
+- Brightness/contrast adjustments
+- Gaussian noise injection
 
 ### Training Configuration
-- Batch Size: 16
-- Learning Rate: 0.0001
-- Validation Split: 20%
-- Early Stopping: 10 epochs patience
-- Weight Decay: 1e-4
-- Data Augmentation:
-  * Random rotations
-  * Horizontal/vertical flips
-  * Brightness/contrast adjustments
-  * Gaussian noise
+| Parameter | Value |
+|-----------|-------|
+| Batch Size | 16 |
+| Learning Rate | 0.0001 |
+| Validation Split | 20% |
+| Early Stopping | 10 epochs patience |
+| Weight Decay | 1e-4 |
 
-## Setup and Installation
+---
 
-1. Create and activate virtual environment:
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.8+
+- CUDA 11.0+ (for GPU support, optional but recommended)
+
+### Installation
+
+1. **Clone the repository**
 ```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or
-.\venv\Scripts\activate  # Windows
+git clone https://github.com/rajeshkadiyalaaa/Dental-Caries-Detection.git
+cd Dental-Caries-Detection
 ```
 
-2. Install dependencies:
+2. **Create virtual environment**
+```bash
+python -m venv venv
+
+# Activate virtual environment
+# On Linux/Mac:
+source venv/bin/activate
+# On Windows:
+.\venv\Scripts\activate
+```
+
+3. **Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Extract dataset:
+4. **Download and extract dataset**
 ```bash
-# Extract the dataset archive
 unzip dental_ai_dataset_v4_augmented.zip
 ```
 
-4. Run the application:
+5. **Run the application**
 ```bash
 python app.py
 ```
 
-## Model Architecture
+The application will be available at `http://localhost:5000`
 
-### 1. Detection Model (Mask R-CNN)
-- Backbone: ResNet-50-FPN
-- ROI Align for precise spatial localization
-- Multi-task learning for detection and segmentation
+---
 
-### 2. Classification Model (ResNet-50)
-- Pre-trained on ImageNet
-- Fine-tuned for dental caries severity
-- Custom head for 4-class classification
-- Class-weighted loss for imbalance handling
+## 💻 Usage
 
-### 3. Recommendation Model (BERT)
-- Pre-trained BERT-base model
-- Custom classification head
-- Context-aware recommendation generation
-- Confidence-based ranking
+### Web Interface
+1. Navigate to the web application in your browser
+2. Upload a dental X-ray image (PNG or JPEG)
+3. View real-time analysis with:
+   - Detected cavity regions (visualization with bounding boxes)
+   - Severity classification and confidence score
+   - Personalized treatment recommendations
 
-## Web Interface Features
+### Features
+- ✅ Drag-and-drop image upload
+- ✅ Real-time image preview
+- ✅ Interactive result visualization
+- ✅ Mobile-responsive design
+- ✅ Exportable analysis reports
 
-1. **Upload Interface**
-   - Supports PNG and JPEG formats
-   - Real-time image preview
-   - Drag and drop functionality
+---
 
-2. **Analysis Results**
-   - Detection visualization
-   - Severity classification
-   - Confidence scores
-   - Personalized recommendations
+## 📈 Performance Metrics
 
-3. **Responsive Design**
-   - Mobile-friendly interface
-   - Real-time updates
-   - Interactive visualization
+| Metric | Status | Value |
+|--------|--------|-------|
+| **Detection AP@0.5** | To be evaluated | - |
+| **Classification Accuracy** | To be evaluated | - |
+| **Classification F1-Score** | To be evaluated | - |
+| **Recommendation Relevance** | To be evaluated | - |
 
-## Performance Metrics
+---
 
-The system achieves the following performance metrics:
+## 🛠️ Technical Stack
 
-1. **Detection**
-   - Average Precision (AP): To be evaluated
-   - IoU Threshold: 0.5
-   - Confidence Threshold: 0.5
+| Component | Technology |
+|-----------|-----------|
+| Detection | PyTorch + Mask R-CNN |
+| Classification | PyTorch + ResNet-50 |
+| NLP/Recommendations | Hugging Face + BERT |
+| Web Framework | Flask |
+| Frontend | HTML5, CSS3, JavaScript |
+| Data Processing | Pandas, NumPy, OpenCV |
 
-2. **Classification**
-   - Accuracy: To be evaluated
-   - F1-Score: To be evaluated
-   - Class-wise Performance: To be evaluated
+---
 
-3. **Recommendation**
-   - Relevance Score: To be evaluated
-   - User Satisfaction: To be evaluated
+## 🔮 Future Enhancements
 
-## Future Improvements
+### Model Improvements
+- [ ] Implement k-fold cross-validation
+- [ ] Experiment with EfficientNet and Vision Transformers
+- [ ] Add ensemble techniques for increased robustness
+- [ ] Develop real-time inference optimization
 
-1. **Model Enhancements**
-   - Implement cross-validation
-   - Experiment with other architectures
-   - Add model ensemble techniques
+### Dataset Expansion
+- [ ] Collect more diverse normal cases
+- [ ] Include varied X-ray types and angles
+- [ ] Add multi-modal imaging data
 
-2. **Dataset Expansion**
-   - Collect more normal cases
-   - Add more variety in conditions
-   - Include different X-ray types
+### Feature Additions
+- [ ] Treatment progress tracking
+- [ ] Multi-image batch analysis
+- [ ] PDF report generation
+- [ ] Dentist feedback integration
+- [ ] Mobile application
+- [ ] Patient history management
 
-3. **Feature Additions**
-   - Treatment progress tracking
-   - Multi-image analysis
-   - Report generation
+---
 
-## License
+## 📝 License
 
 [License information to be added]
 
-## Citation
+---
 
-If you use this project, please cite:
+## 📚 Citation
+
+If you use this project in your research or work, please cite:
+
+```bibtex
 [Citation information to be added]
+```
 
-## Contact
+---
 
-For questions or collaboration, please contact:
-[Contact information to be added] 
+## 📧 Contact & Support
+
+For questions, suggestions, or collaboration opportunities:
+
+- **GitHub Issues**: [Open an issue](https://github.com/rajeshkadiyalaaa/Dental-Caries-Detection/issues)
+- **Contact**: [Your contact information to be added]
+
+---
+
+## ⭐ Acknowledgments
+
+- Dental AI Dataset V4 providers
+- PyTorch and Hugging Face communities
+- Contributors and collaborators
+
+---
+
+**Built with ❤️ for better oral health outcomes**
