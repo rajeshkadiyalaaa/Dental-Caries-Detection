@@ -1,156 +1,116 @@
+"""Flask application for Dental Caries Detection System."""
 from flask import Flask, request, jsonify, render_template
 import torch
-import os
-import sys
-from PIL import Image
-import io
 import torchvision.transforms as transforms
 import warnings
-import traceback
+from typing import Dict, Tuple, Any
+
+from config import Config
+from logger_config import setup_logger
+from src.models_manager import ModelManager
+from src.utils import validate_image
 
 # Filter out deprecation warnings
 warnings.filterwarnings('ignore', category=UserWarning)
 warnings.filterwarnings('ignore', category=FutureWarning)
 
-# Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src'))
+# Setup logging
+logger = setup_logger(__name__)
 
-from detection.model import DentalCariesDetector
-from classification.model import DentalCariesClassifier
-from recommendation.model import DentalRecommendationSystem
-
+# Initialize Flask app
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = Config.MAX_IMAGE_SIZE_MB * 1024 * 1024
 
-# Initialize models
-detector = None
-classifier = None
-recommender = None
+# Initialize model manager
+model_manager = ModelManager()
 
-def log_error(error_msg, error_obj=None):
-    """Log error with traceback if available."""
-    print("\n=== Error Details ===")
-    print(f"Error Message: {error_msg}")
-    if error_obj:
-        print("Stack Trace:")
-        traceback.print_exc()
-    print("==================\n")
 
-def load_models():
-    """Load all models from checkpoints."""
-    global detector, classifier, recommender
-    
-    try:
-        print("Loading models...")
-        # Load detection model
-        detector = DentalCariesDetector()
-        if os.path.exists('models/detection/model.pth'):
-            checkpoint = torch.load('models/detection/model.pth', weights_only=True)
-            if 'model_state_dict' in checkpoint:
-                detector.load_state_dict(checkpoint['model_state_dict'])
-            else:
-                detector.load_state_dict(checkpoint)
-        detector.eval()
-        print("Detection model loaded")
-        
-        # Load classification model
-        classifier = DentalCariesClassifier()
-        if os.path.exists('models/classification/model.pth'):
-            checkpoint = torch.load('models/classification/model.pth', weights_only=True)
-            if 'model_state_dict' in checkpoint:
-                classifier.load_state_dict(checkpoint['model_state_dict'])
-            else:
-                classifier.load_state_dict(checkpoint)
-        classifier.eval()
-        print("Classification model loaded")
-        
-        # Load recommendation model
-        recommender = DentalRecommendationSystem()
-        if os.path.exists('models/recommendation/model.pth'):
-            checkpoint = torch.load('models/recommendation/model.pth', weights_only=True)
-            if 'model_state_dict' in checkpoint:
-                recommender.load_state_dict(checkpoint['model_state_dict'])
-            else:
-                recommender.load_state_dict(checkpoint)
-        recommender.eval()
-        print("Recommendation model loaded")
-        
-        print("All models loaded successfully")
-        return True
-    except Exception as e:
-        print(f"Error loading models: {str(e)}")
-        return False
-
-def analyze_image(image_file):
-    """
-    Analyze a dental X-ray image.
+def analyze_image(image_file) -> Dict[str, Any]:
+    """Analyze a dental X-ray image.
     
     Args:
         image_file: File object from request
         
     Returns:
-        dict: Analysis results
+        dict: Analysis results containing detections, severity, confidence, and recommendations
+        
+    Raises:
+        ValueError: If image validation fails
+        RuntimeError: If model inference fails
     """
     try:
-        # Read and preprocess image
+        logger.info("Starting image analysis...")
+        
+        # Read and validate image
         image_bytes = image_file.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        image = validate_image(image_bytes)
+        logger.debug(f"Image loaded successfully. Size: {image.size}")
         
         # Create transforms for detection
         detection_transform = transforms.Compose([
-            transforms.Resize((800, 800)),
+            transforms.Resize(Config.DETECTION_INPUT_SIZE),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                               std=[0.229, 0.224, 0.225])
+            transforms.Normalize(
+                mean=Config.NORMALIZATION_MEAN,
+                std=Config.NORMALIZATION_STD
+            )
         ])
         
         # Create transforms for classification
         classification_transform = transforms.Compose([
-            transforms.Resize((224, 224)),  # ResNet-50 expected size
+            transforms.Resize(Config.CLASSIFICATION_INPUT_SIZE),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                               std=[0.229, 0.224, 0.225])
+            transforms.Normalize(
+                mean=Config.NORMALIZATION_MEAN,
+                std=Config.NORMALIZATION_STD
+            )
         ])
         
         # Apply transforms
         detection_tensor = detection_transform(image)
         classification_tensor = classification_transform(image)
+        logger.debug(f"Detection tensor shape: {detection_tensor.shape}")
+        logger.debug(f"Classification tensor shape: {classification_tensor.shape}")
         
         # Move to device
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        detection_tensor = detection_tensor.to(device)
-        classification_tensor = classification_tensor.to(device)
-        
-        print("\nProcessing Image:")
-        print(f"Detection tensor shape: {detection_tensor.shape}")
-        print(f"Classification tensor shape: {classification_tensor.shape}")
+        detection_tensor = detection_tensor.to(model_manager.device)
+        classification_tensor = classification_tensor.to(model_manager.device)
         
         # Get detection results
         with torch.no_grad():
-            detections = detector([detection_tensor])
+            detections = model_manager.detector([detection_tensor])
             boxes = detections[0]['boxes'].cpu().numpy()
             scores = detections[0]['scores'].cpu().numpy()
             
             # Filter by confidence
-            confidence_threshold = 0.5
-            high_conf_indices = scores > confidence_threshold
+            high_conf_indices = scores > Config.DETECTION_CONFIDENCE_THRESHOLD
             filtered_boxes = boxes[high_conf_indices].tolist()
             filtered_scores = scores[high_conf_indices].tolist()
             
-            print(f"\nDetection Results:")
-            print(f"Found {len(filtered_boxes)} regions with confidence > {confidence_threshold}")
+            logger.info(
+                f"Detection complete: Found {len(filtered_boxes)} regions "
+                f"with confidence > {Config.DETECTION_CONFIDENCE_THRESHOLD}"
+            )
             
             # Get classification
-            class_pred, class_prob = classifier.predict(classification_tensor.unsqueeze(0))
-            severity_map = ['normal', 'superficial', 'medium', 'deep']
-            severity = severity_map[class_pred.item()]
-            confidence = float(class_prob[0][class_pred].item())
+            class_pred, class_prob = model_manager.classifier.predict(
+                classification_tensor.unsqueeze(0)
+            )
             
-            print(f"\nClassification Results:")
-            print(f"Predicted severity: {severity}")
-            print(f"Confidence: {confidence:.4f}")
+            severity_index = class_pred.item()
+            severity = Config.get_severity_label(severity_index)
+            confidence = float(class_prob[0][severity_index].item())
+            
+            logger.info(f"Classification complete: severity={severity}, confidence={confidence:.4f}")
             
             # Get recommendations
-            recommendations = recommender.get_recommendations('caries', severity, confidence)
+            recommendations = model_manager.recommender.get_recommendations(
+                'caries',
+                severity,
+                confidence
+            )
+            
+            logger.info(f"Generated {len(recommendations)} recommendations")
             
             return {
                 'detections': {
@@ -163,55 +123,109 @@ def analyze_image(image_file):
                 'recommendations': recommendations
             }
             
-    except Exception as e:
-        log_error("Error analyzing image", e)
+    except ValueError as e:
+        logger.error(f"Image validation error: {str(e)}")
         raise
+    except Exception as e:
+        logger.error(f"Error analyzing image: {str(e)}", exc_info=True)
+        raise RuntimeError(f"Image analysis failed: {str(e)}")
+
 
 @app.route('/')
 def home():
-    """Render the home page."""
+    """Render the home page.
+    
+    Returns:
+        Rendered HTML template
+    """
+    logger.debug("Home page requested")
     return render_template('index.html')
 
+
 @app.route('/analyze', methods=['POST'])
-def analyze():
-    """Analyze uploaded image."""
+def analyze() -> Tuple[Dict[str, Any], int]:
+    """Analyze uploaded image.
+    
+    Returns:
+        JSON response with analysis results or error message
+    """
+    logger.info("Analyze endpoint called")
+    
     try:
         # Check if file exists
         if 'file' not in request.files:
+            logger.warning("No file in request")
             return jsonify({'error': 'No file uploaded'}), 400
-            
+        
         file = request.files['file']
+        
         if file.filename == '':
+            logger.warning("Empty filename")
             return jsonify({'error': 'No file selected'}), 400
-            
+        
         # Validate file type
-        if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-            return jsonify({'error': 'Invalid file type. Please upload a PNG or JPEG image'}), 400
-            
+        if not Config.validate_extension(file.filename):
+            logger.warning(f"Invalid file type: {file.filename}")
+            return jsonify({
+                'error': f'Invalid file type. Please upload one of: {Config.ALLOWED_EXTENSIONS}'
+            }), 400
+        
         # Analyze image
         results = analyze_image(file)
-        return jsonify(results)
+        logger.info("Image analysis completed successfully")
+        return jsonify(results), 200
         
-    except Exception as e:
+    except ValueError as e:
+        logger.warning(f"Validation error: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+    except RuntimeError as e:
+        logger.error(f"Analysis error: {str(e)}")
         return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred'}), 500
 
-@app.route('/test/<severity>')
-def test_sample(severity):
-    """Test with sample image."""
-    try:
-        sample_path = f'sample-test/{severity}_1.png'
-        if not os.path.exists(sample_path):
-            return jsonify({'error': 'Sample image not found'}), 404
-            
-        with open(sample_path, 'rb') as f:
-            results = analyze_image(f)
-        return jsonify(results)
+
+@app.route('/health', methods=['GET'])
+def health_check() -> Tuple[Dict[str, Any], int]:
+    """Health check endpoint.
+    
+    Returns:
+        JSON response with health status
+    """
+    return jsonify({
+        'status': 'healthy',
+        'models_loaded': model_manager.is_loaded(),
+        'device': str(model_manager.device)
+    }), 200
+
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Handle file too large error.
+    
+    Args:
+        error: The error object
         
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    Returns:
+        JSON error response
+    """
+    logger.warning("Request entity too large")
+    return jsonify({
+        'error': f'File too large. Maximum size is {Config.MAX_IMAGE_SIZE_MB}MB'
+    }), 413
+
 
 if __name__ == '__main__':
-    if load_models():
-        app.run(debug=True, host='0.0.0.0', port=5000)
+    logger.info("Starting Dental Caries Detection application...")
+    
+    if model_manager.initialize():
+        logger.info("Models initialized successfully")
+        logger.info(
+            f"Starting Flask app on {Config.HOST}:{Config.PORT} "
+            f"(debug={Config.DEBUG})"
+        )
+        app.run(debug=Config.DEBUG, host=Config.HOST, port=Config.PORT)
     else:
-        print("Failed to load models. Exiting...") 
+        logger.error("Failed to initialize models. Exiting...")
+        exit(1)
